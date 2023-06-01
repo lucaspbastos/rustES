@@ -1,3 +1,4 @@
+mod cpu;
 fn main() {
-    println!("Hello, world!");
+    let mut cpu6502 = cpu::CPU::init();
 }
