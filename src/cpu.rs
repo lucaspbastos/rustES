@@ -77,53 +77,62 @@ impl CPU {
         self.write_byte_to_memory(addr + 1, ls_byte);
     }
     // prob needs some work
-    fn handle_addressing_mode(&mut self, mode: &AddressingModes) -> u16 {
+    fn handle_addressing_mode(&mut self, mode: AddressingModes) -> u16 {
         match mode {
             AddressingModes::Implicit => return 0,
             AddressingModes::Accumulator => return self.fetch_a() as u16,
             AddressingModes::Immediate => return self.fetch_pc(),
-            AddressingModes::ZeroPage => return self.read_byte_from_memory(self.fetch_pc()) as u16,
+            AddressingModes::ZeroPage => {
+                let pc = self.fetch_pc();
+                return self.read_byte_from_memory(pc) as u16;
+            }
             AddressingModes::ZeroPageX => {
-                return self
-                    .read_byte_from_memory(self.fetch_pc().wrapping_add(self.fetch_x() as u16))
-                    as u16;
+                let x = self.fetch_x() as u16;
+                let pc = self.fetch_pc();
+                return self.read_byte_from_memory(pc.wrapping_add(x)) as u16;
             }
             AddressingModes::ZeroPageY => {
-                return self
-                    .read_byte_from_memory(self.fetch_pc().wrapping_add(self.fetch_y() as u16))
-                    as u16;
+                let y = self.fetch_y() as u16;
+                let pc = self.fetch_pc();
+                return self.read_byte_from_memory(pc.wrapping_add(y)) as u16;
             }
             AddressingModes::Relative => {
-                return self
-                    .fetch_pc()
-                    .wrapping_add_signed(self.read_byte_from_memory(self.fetch_pc()) as i16);
+                let pc = self.fetch_pc();
+                let pc_2 = self.fetch_pc();
+                return pc.wrapping_add_signed(self.read_byte_from_memory(pc_2) as i16);
             }
             AddressingModes::Absolute => {
-                return self.read_2_bytes_from_memory(self.fetch_pc());
+                let pc = self.fetch_pc();
+                return self.read_2_bytes_from_memory(pc);
             }
             AddressingModes::AbsoluteX => {
-                return self
-                    .read_2_bytes_from_memory(self.fetch_pc().wrapping_add(self.fetch_x() as u16));
+                let pc = self.fetch_pc();
+                let x = self.fetch_x() as u16;
+                return self.read_2_bytes_from_memory(pc.wrapping_add(x));
             }
             AddressingModes::AbsoluteY => {
-                return self
-                    .read_2_bytes_from_memory(self.fetch_pc().wrapping_add(self.fetch_y() as u16));
+                let pc = self.fetch_pc();
+                let y = self.fetch_y() as u16;
+                return self.read_2_bytes_from_memory(pc.wrapping_add(y));
             }
             AddressingModes::Indirect => {
-                let ls_byte_location = self.read_byte_from_memory(self.fetch_pc()) as u16;
+                let pc = self.fetch_pc();
+                let ls_byte_location = self.read_byte_from_memory(pc) as u16;
                 return self.read_2_bytes_from_memory(ls_byte_location);
             }
             AddressingModes::IndirectX => {
-                let ls_byte_location = self
-                    .read_byte_from_memory(self.fetch_pc().wrapping_add(self.fetch_x() as u16))
-                    as u16;
+                let pc = self.fetch_pc();
+                let x = self.fetch_x() as u16;
+                let ls_byte_location = self.read_byte_from_memory(pc.wrapping_add(x)) as u16;
                 return self.read_2_bytes_from_memory(ls_byte_location);
             }
             AddressingModes::IndirectY => {
-                let ls_byte_location = self.read_byte_from_memory(self.fetch_pc()) as u16;
+                let pc = self.fetch_pc();
+                let ls_byte_location = self.read_byte_from_memory(pc) as u16;
+                let y = self.fetch_y();
                 return self
                     .read_2_bytes_from_memory(ls_byte_location)
-                    .wrapping_add(self.fetch_y() as u16);
+                    .wrapping_add(y as u16);
             }
             _ => {
                 println!("Unknown mode");
@@ -218,48 +227,26 @@ impl CPU {
 
     fn update_program_counter_n(&mut self, val: i16) {
         if val >= 0 {
-            self.pc.wrapping_add(val as u16);
+            self.pc = self.pc.wrapping_add(val as u16);
         } else {
-            self.pc.wrapping_sub(val as u16);
+            self.pc = self.pc.wrapping_sub(val as u16);
         }
     }
 
     fn fetch_pc(&mut self) -> u16 {
-        self.update_program_counter_n(1);
         return self.pc;
     }
 
     fn fetch_a(&mut self) -> u8 {
-        self.update_program_counter_n(1);
         return self.a;
     }
 
     fn fetch_x(&mut self) -> u8 {
-        self.update_program_counter_n(1);
         return self.x;
     }
 
     fn fetch_y(&mut self) -> u8 {
-        self.update_program_counter_n(1);
         return self.y;
-    }
-
-    fn fetch_pc_and_increment_n_i8(&mut self, val: i8) -> i8 {
-        let result = self.pc as i8;
-        self.update_program_counter_n(val as i16);
-        return result;
-    }
-
-    fn fetch_pc_and_increment_n_i16(&mut self, val: i16) -> i16 {
-        let result = self.pc;
-        self.update_program_counter_n(val);
-        return result as i16;
-    }
-
-    fn fetch_pc_and_increment_2_u16(&mut self) -> u16 {
-        let result = self.pc;
-        self.update_program_counter_n(2);
-        return result;
     }
 
     fn update_zero_and_negative_flags_u8(&mut self, bit: u8) {
@@ -275,7 +262,9 @@ impl CPU {
         }
     }
 
-    fn cpy(&mut self, val: u8) {
+    fn cpy(&mut self, mode: AddressingModes) {
+        let addr = self.handle_addressing_mode(mode);
+        let val = self.read_byte_from_memory(addr);
         let result = self.y - val;
 
         if self.y >= val {
@@ -313,17 +302,23 @@ impl CPU {
         }
     }
 
-    fn lda(&mut self, val: u8) {
+    fn lda(&mut self, mode: AddressingModes) {
+        let addr = self.handle_addressing_mode(mode);
+        let val = self.read_byte_from_memory(addr);
         self.a = val;
         self.update_zero_and_negative_flags_u8(self.a);
     }
 
-    fn ldx(&mut self, val: u8) {
+    fn ldx(&mut self, mode: AddressingModes) {
+        let addr = self.handle_addressing_mode(mode);
+        let val = self.read_byte_from_memory(addr);
         self.x = val;
         self.update_zero_and_negative_flags_u8(self.x);
     }
 
-    fn ldy(&mut self, val: u8) {
+    fn ldy(&mut self, mode: AddressingModes) {
+        let addr = self.handle_addressing_mode(mode);
+        let val = self.read_byte_from_memory(addr);
         self.y = val;
         self.update_zero_and_negative_flags_u8(self.y);
     }
@@ -333,36 +328,34 @@ impl CPU {
         self.update_zero_and_negative_flags_u8(self.x);
     }
 
-    pub fn interpret(&mut self, program: Vec<u8>) {
-        self.pc = 0;
-        loop {
-            println!("{:?}", self);
-            let opcode = program[self.pc as usize];
-            self.update_program_counter_n(1);
+    pub fn load_to_memory(&mut self, startAddr: u16, dataVec: Vec<u8>) {
+        let dataVecIterator = dataVec.iter();
+        let mut curAddr = startAddr;
+        for data in dataVecIterator {
+            self.write_byte_to_memory(curAddr, *data);
+            curAddr += 1;
+        }
+    }
 
+    pub fn start(&mut self, startAddr: u16) {
+        self.pc = startAddr;
+        loop {
+            let pc = self.pc;
+            let opcode = self.read_byte_from_memory(pc);
             match opcode {
                 0x00 => {
                     return;
                 }
                 0xA0 => {
-                    let param = program[self.pc as usize];
-                    self.update_program_counter_n(1);
-
-                    self.ldy(param);
+                    self.ldy(AddressingModes::Immediate);
                 }
                 //LDX: immediate
                 0xA2 => {
-                    let param = program[self.pc as usize];
-                    self.update_program_counter_n(1);
-
-                    self.ldx(param);
+                    self.ldx(AddressingModes::Immediate);
                 }
                 //LDA: immediate
                 0xA9 => {
-                    let param = program[self.pc as usize];
-                    self.update_program_counter_n(1);
-
-                    self.lda(param);
+                    self.lda(AddressingModes::Immediate);
                 }
                 //TAX: implicit
                 0xAA => {
@@ -370,16 +363,13 @@ impl CPU {
                 }
                 //CPY: immediate
                 0xC0 => {
-                    let param = program[self.pc as usize];
-                    self.update_program_counter_n(1);
-
-                    self.cpy(param);
+                    self.cpy(AddressingModes::Immediate);
                 }
                 //INX: immediate
                 0xe8 => {
                     self.inx();
                 }
-                _ => println!("Unknown"),
+                _ => return,
             }
         }
     }
@@ -389,53 +379,57 @@ impl CPU {
 mod test {
     use super::*;
 
-    // #[test]
-    // fn test_0xa9_lda_immediate_load_data() {
-    //     let mut cpu = CPU::init();
-    //     cpu.interpret(vec![0xa9, 0x05, 0x00]);
-    //     assert_eq!(cpu.a, 0x05);
-    //     assert!(cpu.ps & 0b0000_0010 == 0b00);
-    //     assert!(cpu.ps & 0b1000_0000 == 0);
-    // }
+    #[test]
+    fn test_0xa9_lda_immediate_load_data() {
+        let mut cpu = CPU::init();
+        cpu.load_to_memory(0x8000, vec![0xa9, 0x05, 0x00]);
+        cpu.start(0x8000);
+        assert_eq!(cpu.a, 0x05);
+        assert!(cpu.ps & 0b0000_0010 == 0b00);
+        assert!(cpu.ps & 0b1000_0000 == 0);
+    }
 
-    // #[test]
-    // fn test_0xa9_lda_zero_flag() {
-    //     let mut cpu = CPU::init();
-    //     cpu.interpret(vec![0xa9, 0x00, 0x00]);
-    //     assert!(cpu.ps & 0b0000_0010 == 0b10);
-    // }
+    #[test]
+    fn test_0xa9_lda_zero_flag() {
+        let mut cpu = CPU::init();
+        cpu.load_to_memory(0x8000, vec![0xa9, 0x00, 0x00]);
+        cpu.start(0x8000);
+        assert!(cpu.ps & 0b0000_0010 == 0b10);
+    }
 
-    // #[test]
-    // fn test_0xaa_tax_move_a_to_x() {
-    //     let mut cpu = CPU::init();
-    //     cpu.a = 10;
-    //     cpu.interpret(vec![0xaa, 0x00]);
+    #[test]
+    fn test_0xaa_tax_move_a_to_x() {
+        let mut cpu = CPU::init();
+        cpu.a = 10;
+        cpu.load_to_memory(0x8000, vec![0xaa, 0x00]);
+        cpu.start(0x8000);
 
-    //     assert_eq!(cpu.x, 10)
-    // }
+        assert_eq!(cpu.x, 10)
+    }
 
-    // #[test]
-    // fn test_5_ops_working_together() {
-    //     let mut cpu = CPU::init();
-    //     cpu.interpret(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
+    #[test]
+    fn test_5_ops_working_together() {
+        let mut cpu = CPU::init();
+        cpu.load_to_memory(0x8000, vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
+        cpu.start(0x8000);
 
-    //     assert_eq!(cpu.x, 0xc1)
-    // }
+        assert_eq!(cpu.x, 0xc1)
+    }
 
-    // #[test]
-    // fn test_inx_overflow() {
-    //     let mut cpu = CPU::init();
-    //     cpu.x = 0xff;
-    //     cpu.interpret(vec![0xe8, 0xe8, 0x00]);
+    #[test]
+    fn test_inx_overflow() {
+        let mut cpu = CPU::init();
+        cpu.x = 0xff;
+        cpu.load_to_memory(0x8000, vec![0xe8, 0xe8, 0x00]);
+        cpu.start(0x8000);
 
-    //     assert_eq!(cpu.x, 1)
-    // }
+        assert_eq!(cpu.x, 1)
+    }
 
     #[test]
     fn test_memory_read() {
         let mut cpu = CPU::init();
         cpu.write_byte_to_memory(0xA1, 65);
-        println!("{:?}", cpu);
         assert_eq!(cpu.read_byte_from_memory(0xA1), 65)
     }
 
