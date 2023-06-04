@@ -323,6 +323,16 @@ impl CPU {
         self.update_zero_and_negative_flags_u8(self.y);
     }
 
+    //todo: accumulator handling
+    fn lsr(&mut self, mode: AddressingModes) {
+        let addr = self.handle_addressing_mode(mode);
+        let val = self.read_byte_from_memory(addr);
+        let bit_0 = val & 1;
+        let newval = val >> 1;
+        self.write_byte_to_memory(addr, newval);
+        self.update_zero_and_negative_flags_u8(newval)
+    }
+
     fn tax(&mut self) {
         self.x = self.a;
         self.update_zero_and_negative_flags_u8(self.x);
@@ -349,13 +359,62 @@ impl CPU {
                 0xA0 => {
                     self.ldy(AddressingModes::Immediate);
                 }
-                //LDX: immediate
+                //LDA
+                0xA1 => {
+                    self.lda(AddressingModes::IndirectX);
+                }
+                0xA5 => {
+                    self.lda(AddressingModes::ZeroPage);
+                }
+                0xA9 => {
+                    self.lda(AddressingModes::Immediate);
+                }
+                0xAD => {
+                    self.lda(AddressingModes::Absolute);
+                }
+                0xB1 => {
+                    self.lda(AddressingModes::IndirectY);
+                }
+                0xB5 => {
+                    self.lda(AddressingModes::ZeroPageX);
+                }
+                0xB9 => {
+                    self.lda(AddressingModes::AbsoluteY);
+                }
+                0xBD => {
+                    self.lda(AddressingModes::AbsoluteX);
+                }
+                // LDX
                 0xA2 => {
                     self.ldx(AddressingModes::Immediate);
                 }
-                //LDA: immediate
-                0xA9 => {
-                    self.lda(AddressingModes::Immediate);
+                0xA6 => {
+                    self.ldx(AddressingModes::ZeroPage);
+                }
+                0xAE => {
+                    self.ldx(AddressingModes::Absolute);
+                }
+                0xB6 => {
+                    self.ldx(AddressingModes::ZeroPageY);
+                }
+                0xBE => {
+                    self.ldx(AddressingModes::AbsoluteY);
+                }
+                // LDY
+                0xA0 => {
+                    self.ldy(AddressingModes::Immediate);
+                }
+                0xA4 => {
+                    self.ldy(AddressingModes::ZeroPage);
+                }
+                0xAC => {
+                    self.ldy(AddressingModes::Absolute);
+                }
+                0xB4 => {
+                    self.ldy(AddressingModes::ZeroPageX);
+                }
+                0xBC => {
+                    self.ldy(AddressingModes::AbsoluteX);
                 }
                 //TAX: implicit
                 0xAA => {
