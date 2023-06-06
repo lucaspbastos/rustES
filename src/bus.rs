@@ -2,7 +2,7 @@ use crate::ram::RAM;
 
 #[derive(Debug)]
 pub struct BUS {
-    pub ram: RAM,
+    ram: RAM,
 }
 
 impl BUS {

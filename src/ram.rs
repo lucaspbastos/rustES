@@ -11,7 +11,7 @@ const END_CARTRIDGE_ROM: u16 = 0xFFFF;
 
 #[derive(Debug)]
 pub struct RAM {
-    pub memory: [u8; 0xFFFF],
+    memory: [u8; 0xFFFF],
 }
 
 impl RAM {
